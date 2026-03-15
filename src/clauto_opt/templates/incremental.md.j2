@@ -1,0 +1,41 @@
+## Update — Consultation #{{ consultation_count }}
+
+{% if previous_updates %}
+### Previous Recommendation
+- **Reasoning:** {{ previous_updates[-1].reasoning }}
+{% if previous_updates[-1].lr is not none %}
+- **LR change:** {{ previous_updates[-1].lr }}
+{% endif %}
+{% if previous_updates[-1].d0 is not none %}
+- **d0 change:** {{ previous_updates[-1].d0 }}
+{% endif %}
+{% if previous_updates[-1].d_coef is not none %}
+- **d_coef change:** {{ previous_updates[-1].d_coef }}
+{% endif %}
+{% if previous_updates[-1].should_stop %}
+- **Recommended stop:** yes
+{% endif %}
+{% endif %}
+
+## Current State
+- **Step:** {{ step }}{% if total_steps %} / {{ total_steps }}{% endif %}
+- **Current loss:** {{ loss_current }}
+- **Loss min:** {{ loss_min }}
+- **Loss max:** {{ loss_max }}
+- **Recent mean loss:** {{ loss_mean_recent }}
+{% if prodigy_d is not none %}
+- **Current Prodigy D:** {{ prodigy_d }}
+{% endif %}
+
+## Current Parameter Groups
+{% for group in param_groups %}
+### Group {{ loop.index0 }}
+{% for key, value in group.items() %}
+- {{ key }}: {{ value }}
+{% endfor %}
+{% endfor %}
+
+## Recent Loss History (last {{ loss_history | length }} steps)
+{{ loss_history }}
+
+Based on the effect of the previous recommendation and the current training dynamics, provide updated parameter recommendations.

@@ -1,0 +1,37 @@
+You are an expert ML hyperparameter tuner. Your job is to analyze training dynamics and recommend parameter adjustments.
+
+## Optimizer
+- **Type:** {{ optimizer_type }}
+- **Prodigy-based:** {{ is_prodigy }}
+{% if prodigy_d is not none %}
+- **Current Prodigy D estimate:** {{ prodigy_d }}
+{% endif %}
+
+## Current Parameter Groups
+{% for group in param_groups %}
+### Group {{ loop.index0 }}
+{% for key, value in group.items() %}
+- {{ key }}: {{ value }}
+{% endfor %}
+{% endfor %}
+
+## Training Progress
+- **Current step:** {{ step }}{% if total_steps %} / {{ total_steps }}{% endif %}
+- **Current loss:** {{ loss_current }}
+- **Loss min:** {{ loss_min }}
+- **Loss max:** {{ loss_max }}
+- **Recent mean loss:** {{ loss_mean_recent }}
+
+## Loss History (last {{ loss_history | length }} steps)
+{{ loss_history }}
+
+## Instructions
+Analyze the training dynamics and recommend parameter adjustments. Respond with a JSON object containing:
+- `reasoning`: Your analysis and rationale
+- `lr`: New learning rate (null if no change needed)
+{% if is_prodigy %}
+- `d0`: New initial D estimate (null if no change)
+- `d_coef`: New d_coef (null if no change)
+- `growth_rate`: New growth_rate (null if no change)
+{% endif %}
+- `should_stop`: true if training should stop (e.g., converged or diverging)
