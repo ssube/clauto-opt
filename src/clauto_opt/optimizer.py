@@ -13,6 +13,7 @@ import torch
 
 from clauto_opt.backends import Backend, create_backend
 from clauto_opt.config import ClaudeOptimizerConfig
+from clauto_opt.exceptions import ConsultationError
 from clauto_opt.models import ParameterUpdate, TrainingContext
 from clauto_opt.tracking import WandbTracker
 from clauto_opt.triggers import ConsultationTrigger, IntervalTrigger, PlateauTrigger, SpikeTrigger
@@ -58,6 +59,7 @@ class ClaudeOptimizer:
         self._loss_history: deque[float] = deque(maxlen=self.config.loss_history_maxlen)
         self._previous_updates: list[ParameterUpdate] = []
         self._consultation_count: int = 0
+        self._custom_metrics: dict[str, float] = {}
 
         # Prodigy detection
         self._is_prodigy = self._detect_prodigy() if self.config.auto_detect_prodigy else False
@@ -103,9 +105,20 @@ class ClaudeOptimizer:
         self._loss_history.append(value)
         self._tracker.log_loss(self._step_count, value)
 
+    def record_metric(self, name: str, value: float) -> None:
+        """Record a custom metric that will be included in the next consultation prompt."""
+        self._custom_metrics[name] = value
+
     # -- Consultation --
 
-    def _consult(self) -> None:
+    def consult(self) -> ParameterUpdate | None:
+        """Manually trigger a consultation with Claude.
+
+        Returns the ParameterUpdate on success, or None if the consultation fails.
+        """
+        return self._consult()
+
+    def _consult(self) -> ParameterUpdate | None:
         """Build context, render prompt, consult Claude, and apply updates."""
         context = self._build_context()
 
@@ -118,7 +131,19 @@ class ClaudeOptimizer:
         prompt = template.render(context.model_dump())
         logger.info("Consulting Claude at step %d (consultation #%d)", self._step_count, self._consultation_count + 1)
 
-        update = self._backend.consult(prompt)
+        try:
+            update = self._backend.consult(prompt)
+        except ConsultationError:
+            logger.warning(
+                "Consultation failed at step %d — training continues",
+                self._step_count,
+                exc_info=True,
+            )
+            # Reset triggers so we don't immediately retry
+            for trigger in self._triggers:
+                trigger.reset()
+            return None
+
         logger.info("Claude recommends: %s", update.reasoning)
 
         if not self.config.dry_run:
@@ -133,6 +158,8 @@ class ClaudeOptimizer:
         # Reset triggers after consultation
         for trigger in self._triggers:
             trigger.reset()
+
+        return update
 
     @staticmethod
     def _sample_losses(losses: list[float], sampling_rate: float) -> list[float]:
@@ -175,6 +202,7 @@ class ClaudeOptimizer:
 
         return TrainingContext(
             step=self._step_count,
+            total_steps=self.config.total_steps,
             loss_history=sampled_losses,
             loss_current=loss_list[-1] if loss_list else 0.0,
             loss_min=min(loss_list) if loss_list else 0.0,
@@ -186,6 +214,7 @@ class ClaudeOptimizer:
             prodigy_d=self._get_prodigy_d(),
             previous_updates=self._previous_updates,
             consultation_count=self._consultation_count,
+            custom_metrics=dict(self._custom_metrics),
         )
 
     def _apply_update(self, update: ParameterUpdate) -> None:

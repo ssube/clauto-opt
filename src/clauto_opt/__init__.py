@@ -1,6 +1,7 @@
 """clauto_opt — Claude Automatic Optimizer for PyTorch."""
 
 from clauto_opt.config import ClaudeOptimizerConfig
+from clauto_opt.exceptions import ConsultationError
 from clauto_opt.models import ParameterUpdate, TrainingContext
 from clauto_opt.optimizer import ClaudeOptimizer
 from clauto_opt.triggers import ConsultationTrigger, IntervalTrigger, PlateauTrigger, SpikeTrigger
@@ -8,6 +9,7 @@ from clauto_opt.triggers import ConsultationTrigger, IntervalTrigger, PlateauTri
 __all__ = [
     "ClaudeOptimizer",
     "ClaudeOptimizerConfig",
+    "ConsultationError",
     "ConsultationTrigger",
     "IntervalTrigger",
     "ParameterUpdate",

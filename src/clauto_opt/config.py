@@ -37,6 +37,11 @@ class ClaudeOptimizerConfig:
     lr_change_max_factor: float = 10.0
     dry_run: bool = False
 
+    # Consultation
+    consultation_timeout: float = 30.0
+    system_prompt: str | None = None
+    total_steps: int | None = None
+
     # W&B
     wandb_enabled: bool = False
     wandb_log_loss: bool = False

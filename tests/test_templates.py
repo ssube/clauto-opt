@@ -104,3 +104,101 @@ class TestCustomTemplate:
         template = ClaudeOptimizer._load_template(template_file, "initial.md.j2")
         rendered = template.render({"optimizer_type": "SGD"})
         assert rendered == "Custom: SGD"
+
+
+class TestFormattedLossHistory:
+    def test_no_brackets_in_loss_history(self) -> None:
+        ctx = TrainingContext(
+            step=100,
+            loss_history=[1.0, 0.9, 0.8, 0.7],
+            loss_current=0.7,
+            loss_min=0.7,
+            loss_max=1.0,
+            loss_mean_recent=0.85,
+            param_groups=[{"lr": 0.001}],
+            optimizer_type="AdamW",
+        )
+        template = ClaudeOptimizer._load_template(None, "initial.md.j2")
+        rendered = template.render(ctx.model_dump())
+
+        # Loss history section should not contain Python list brackets
+        loss_section_start = rendered.index("Loss History")
+        loss_section = rendered[loss_section_start:]
+        assert "[" not in loss_section
+        assert "]" not in loss_section
+
+    def test_loss_values_formatted(self) -> None:
+        ctx = TrainingContext(
+            step=50,
+            loss_history=[1.123456, 0.987654],
+            loss_current=0.987654,
+            loss_min=0.987654,
+            loss_max=1.123456,
+            loss_mean_recent=1.055555,
+            param_groups=[{"lr": 0.001}],
+            optimizer_type="AdamW",
+        )
+        template = ClaudeOptimizer._load_template(None, "initial.md.j2")
+        rendered = template.render(ctx.model_dump())
+
+        assert "1.123456" in rendered
+        assert "0.987654" in rendered
+
+    def test_incremental_no_brackets(self) -> None:
+        ctx = TrainingContext(
+            step=100,
+            loss_history=[0.5, 0.4, 0.3],
+            loss_current=0.3,
+            loss_min=0.3,
+            loss_max=0.5,
+            loss_mean_recent=0.4,
+            param_groups=[{"lr": 0.001}],
+            optimizer_type="AdamW",
+            consultation_count=1,
+        )
+        template = ClaudeOptimizer._load_template(None, "incremental.md.j2")
+        rendered = template.render(ctx.model_dump())
+
+        loss_section_start = rendered.index("Loss History")
+        loss_section = rendered[loss_section_start:]
+        assert "[" not in loss_section
+        assert "]" not in loss_section
+
+
+class TestCustomMetricsInTemplate:
+    def test_custom_metrics_in_template(self) -> None:
+        ctx = TrainingContext(
+            step=100,
+            loss_history=[1.0],
+            loss_current=1.0,
+            loss_min=1.0,
+            loss_max=1.0,
+            loss_mean_recent=1.0,
+            param_groups=[{"lr": 0.001}],
+            optimizer_type="AdamW",
+            custom_metrics={"grad_norm": 0.5, "val_loss": 0.8},
+        )
+        template = ClaudeOptimizer._load_template(None, "initial.md.j2")
+        rendered = template.render(ctx.model_dump())
+
+        assert "Custom Metrics" in rendered
+        assert "grad_norm" in rendered
+        assert "0.5" in rendered
+        assert "val_loss" in rendered
+        assert "0.8" in rendered
+
+    def test_custom_metrics_empty_by_default(self) -> None:
+        ctx = TrainingContext(
+            step=100,
+            loss_history=[1.0],
+            loss_current=1.0,
+            loss_min=1.0,
+            loss_max=1.0,
+            loss_mean_recent=1.0,
+            param_groups=[{"lr": 0.001}],
+            optimizer_type="AdamW",
+        )
+        template = ClaudeOptimizer._load_template(None, "initial.md.j2")
+        rendered = template.render(ctx.model_dump())
+
+        assert "Custom Metrics" not in rendered

@@ -1,0 +1,41 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv venv --python 3.12
+      - run: uv pip install -e ".[dev]"
+      - run: .venv/bin/black --check src/ tests/
+      - run: .venv/bin/isort --check src/ tests/
+      - run: .venv/bin/flake8 src/ tests/
+
+  test:
+    needs: [lint]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv venv --python 3.12
+      - run: uv pip install -e ".[dev]"
+      - run: .venv/bin/pytest tests/ -v --tb=short
+
+  publish:
+    needs: [test]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv venv --python 3.12
+      - run: uv pip install build
+      - run: .venv/bin/python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1

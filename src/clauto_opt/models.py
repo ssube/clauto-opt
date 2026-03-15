@@ -32,3 +32,4 @@ class TrainingContext(BaseModel):
     prodigy_d: float | None = None
     previous_updates: list[ParameterUpdate] = Field(default_factory=list)
     consultation_count: int = 0
+    custom_metrics: dict[str, float] = Field(default_factory=dict)

@@ -19,12 +19,20 @@
 
 ## Current State
 - **Step:** {{ step }}{% if total_steps %} / {{ total_steps }}{% endif %}
+
 - **Current loss:** {{ loss_current }}
 - **Loss min:** {{ loss_min }}
 - **Loss max:** {{ loss_max }}
 - **Recent mean loss:** {{ loss_mean_recent }}
 {% if prodigy_d is not none %}
 - **Current Prodigy D:** {{ prodigy_d }}
+{% endif %}
+{% if custom_metrics %}
+
+## Custom Metrics
+{% for name, value in custom_metrics.items() %}
+- {{ name }}: {{ value }}
+{% endfor %}
 {% endif %}
 
 ## Current Parameter Groups
@@ -36,6 +44,9 @@
 {% endfor %}
 
 ## Recent Loss History (last {{ loss_history | length }} steps)
-{{ loss_history }}
+```
+{% for loss in loss_history %}{{ "%.6f" | format(loss) }}{% if not loop.last %}, {% endif %}{% if loop.index % 10 == 0 %}
+{% endif %}{% endfor %}
+```
 
 Based on the effect of the previous recommendation and the current training dynamics, provide updated parameter recommendations.

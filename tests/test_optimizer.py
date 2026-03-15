@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 
 from clauto_opt.config import ClaudeOptimizerConfig
+from clauto_opt.exceptions import ConsultationError
 from clauto_opt.models import ParameterUpdate
 from clauto_opt.optimizer import ClaudeOptimizer
 from clauto_opt.triggers import IntervalTrigger
@@ -195,6 +196,104 @@ class TestConsultation:
             opt.zero_grad()
 
         assert opt.should_stop is True
+
+    def test_optimizer_survives_consultation_failure(
+        self, small_model: nn.Module, adamw_optimizer: torch.optim.AdamW
+    ) -> None:
+        mock_be = MagicMock()
+        mock_be.consult.side_effect = ConsultationError("Network error")
+
+        config = ClaudeOptimizerConfig(consult_every_n_steps=3)
+        triggers = [IntervalTrigger(every_n_steps=3)]
+        opt = ClaudeOptimizer(adamw_optimizer, backend=mock_be, config=config, triggers=triggers)
+
+        original_lr = adamw_optimizer.param_groups[0]["lr"]
+
+        for step in range(6):
+            x = torch.randn(1, 2)
+            loss = (small_model(x) - torch.tensor([[1.0]])).pow(2).mean()
+            loss.backward()
+            opt.record_loss(loss.item())
+            opt.step()
+            opt.zero_grad()
+
+        # Training continued, consultation_count stays 0
+        assert opt.consultation_count == 0
+        # LR unchanged
+        assert adamw_optimizer.param_groups[0]["lr"] == original_lr
+        # Steps still counted
+        assert opt.step_count == 6
+
+
+class TestManualConsult:
+    def test_manual_consult_returns_update(self, adamw_optimizer: torch.optim.AdamW) -> None:
+        mock_be = MagicMock()
+        expected = ParameterUpdate(reasoning="Manual recommendation", lr=2e-4)
+        mock_be.consult.return_value = expected
+
+        opt = ClaudeOptimizer(adamw_optimizer, backend=mock_be, config=ClaudeOptimizerConfig(dry_run=True))
+        opt.record_loss(1.0)
+
+        result = opt.consult()
+        assert result is not None
+        assert result.reasoning == "Manual recommendation"
+        assert result.lr == 2e-4
+
+    def test_manual_consult_increments_count(self, adamw_optimizer: torch.optim.AdamW) -> None:
+        mock_be = MagicMock()
+        mock_be.consult.return_value = ParameterUpdate(reasoning="Test")
+
+        opt = ClaudeOptimizer(adamw_optimizer, backend=mock_be, config=ClaudeOptimizerConfig(dry_run=True))
+        opt.record_loss(1.0)
+
+        assert opt.consultation_count == 0
+        opt.consult()
+        assert opt.consultation_count == 1
+        opt.consult()
+        assert opt.consultation_count == 2
+
+    def test_manual_consult_returns_none_on_failure(self, adamw_optimizer: torch.optim.AdamW) -> None:
+        mock_be = MagicMock()
+        mock_be.consult.side_effect = ConsultationError("API down")
+
+        opt = ClaudeOptimizer(adamw_optimizer, backend=mock_be)
+        opt.record_loss(1.0)
+
+        result = opt.consult()
+        assert result is None
+        assert opt.consultation_count == 0
+
+
+class TestTotalSteps:
+    def test_total_steps_in_context(self, adamw_optimizer: torch.optim.AdamW) -> None:
+        config = ClaudeOptimizerConfig(total_steps=1000)
+        opt = ClaudeOptimizer(adamw_optimizer, backend=MagicMock(), config=config)
+        opt.record_loss(1.0)
+        ctx = opt._build_context()
+        assert ctx.total_steps == 1000
+
+    def test_total_steps_none_by_default(self, adamw_optimizer: torch.optim.AdamW) -> None:
+        opt = ClaudeOptimizer(adamw_optimizer, backend=MagicMock())
+        opt.record_loss(1.0)
+        ctx = opt._build_context()
+        assert ctx.total_steps is None
+
+
+class TestCustomMetrics:
+    def test_record_metric(self, adamw_optimizer: torch.optim.AdamW) -> None:
+        opt = ClaudeOptimizer(adamw_optimizer, backend=MagicMock())
+        opt.record_loss(1.0)
+        opt.record_metric("grad_norm", 0.5)
+        opt.record_metric("val_loss", 0.8)
+
+        ctx = opt._build_context()
+        assert ctx.custom_metrics == {"grad_norm": 0.5, "val_loss": 0.8}
+
+    def test_custom_metrics_empty_by_default(self, adamw_optimizer: torch.optim.AdamW) -> None:
+        opt = ClaudeOptimizer(adamw_optimizer, backend=MagicMock())
+        opt.record_loss(1.0)
+        ctx = opt._build_context()
+        assert ctx.custom_metrics == {}
 
 
 class TestProdigyDetection:

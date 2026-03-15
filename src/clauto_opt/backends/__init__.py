@@ -22,10 +22,14 @@ def create_backend(backend: str, config: ClaudeOptimizerConfig) -> Backend:
     if backend == "api":
         from clauto_opt.backends.api import AnthropicAPIBackend
 
-        return AnthropicAPIBackend(model=config.model, max_tokens=config.max_tokens)
+        return AnthropicAPIBackend(
+            model=config.model,
+            max_tokens=config.max_tokens,
+            system_prompt=config.system_prompt,
+        )
     elif backend == "cli":
         from clauto_opt.backends.cli import ClaudeCLIBackend
 
-        return ClaudeCLIBackend(model=config.model)
+        return ClaudeCLIBackend(model=config.model, timeout=config.consultation_timeout)
     else:
         raise ValueError(f"Unknown backend: {backend!r}. Use 'api' or 'cli'.")
