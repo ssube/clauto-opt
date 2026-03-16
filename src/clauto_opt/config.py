@@ -37,7 +37,7 @@ class ClaudeOptimizerConfig:
     dry_run: bool = False
 
     # Consultation
-    consultation_timeout: float = 30.0
+    consultation_timeout: float = 60.0
     system_prompt: str | None = None
     total_steps: int | None = None
 

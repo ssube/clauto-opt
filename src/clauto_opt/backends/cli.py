@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import subprocess
-import uuid
 
 from clauto_opt.exceptions import ConsultationError
 from clauto_opt.models import ParameterUpdate
+
+logger = logging.getLogger(__name__)
 
 
 class ClaudeCLIBackend:
@@ -16,27 +18,32 @@ class ClaudeCLIBackend:
     def __init__(self, model: str = "claude-sonnet-4-6", timeout: float = 30.0) -> None:
         self._model = model
         self._timeout = timeout
-        self._session_id: str = uuid.uuid4().hex
+        self._session_id: str | None = None
         self._consultation_count: int = 0
         self._schema = json.dumps(ParameterUpdate.model_json_schema())
 
     def consult(self, prompt: str) -> ParameterUpdate:
         cmd = ["claude", "-p", prompt, "--output-format", "json", "--json-schema", self._schema, "--model", self._model]
 
-        if self._consultation_count == 0:
-            cmd.extend(["--session-id", self._session_id])
-        else:
+        if self._session_id is not None:
             cmd.extend(["--resume", self._session_id])
 
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=self._timeout)
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        except subprocess.CalledProcessError as exc:
+            logger.error("CLI exited with status %d\nstdout: %s\nstderr: %s", exc.returncode, exc.stdout, exc.stderr)
+            raise ConsultationError(f"CLI call failed (exit {exc.returncode}): {exc.stderr}", original=exc) from exc
+        except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
             raise ConsultationError(f"CLI call failed: {exc}", original=exc) from exc
 
         try:
             data = json.loads(result.stdout)
         except json.JSONDecodeError as exc:
             raise ConsultationError(f"CLI returned invalid JSON: {exc}", original=exc) from exc
+
+        # Capture session ID from response for subsequent calls
+        if "session_id" in data:
+            self._session_id = data["session_id"]
 
         # CLI returns structured output in 'structured_output' or 'result' field
         try:
@@ -59,5 +66,5 @@ class ClaudeCLIBackend:
         return update
 
     def reset(self) -> None:
-        self._session_id = uuid.uuid4().hex
+        self._session_id = None
         self._consultation_count = 0

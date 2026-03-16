@@ -140,31 +140,38 @@ class TestAnthropicAPIBackend:
 
 
 class TestClaudeCLIBackend:
-    def test_first_call_uses_session_id(self) -> None:
-        cli_output = json.dumps({"structured_output": {"reasoning": "Test", "lr": 0.001, "should_stop": False}})
+    def test_first_call_has_no_session(self) -> None:
+        cli_output = json.dumps({"session_id": "abc-123", "structured_output": {"reasoning": "Test", "lr": 0.001, "should_stop": False}})
         with patch("clauto_opt.backends.cli.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(stdout=cli_output, returncode=0)
             backend = ClaudeCLIBackend(model="claude-sonnet-4-6")
             result = backend.consult("Test prompt")
 
             cmd = mock_run.call_args[0][0]
-            assert "--session-id" in cmd
+            assert "--session-id" not in cmd
             assert "--resume" not in cmd
             assert result.reasoning == "Test"
             assert result.lr == 0.001
+            assert backend._session_id == "abc-123"
 
     def test_subsequent_calls_use_resume(self) -> None:
-        cli_output = json.dumps({"structured_output": {"reasoning": "Test", "should_stop": False}})
+        first_output = json.dumps({"session_id": "abc-123", "structured_output": {"reasoning": "Test", "should_stop": False}})
+        second_output = json.dumps({"session_id": "abc-123", "structured_output": {"reasoning": "Test2", "should_stop": False}})
         with patch("clauto_opt.backends.cli.subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(stdout=cli_output, returncode=0)
+            mock_run.side_effect = [
+                MagicMock(stdout=first_output, returncode=0),
+                MagicMock(stdout=second_output, returncode=0),
+            ]
             backend = ClaudeCLIBackend()
 
             backend.consult("First")
             backend.consult("Second")
 
+            first_cmd = mock_run.call_args_list[0][0][0]
+            assert "--resume" not in first_cmd
             second_cmd = mock_run.call_args_list[1][0][0]
             assert "--resume" in second_cmd
-            assert "--session-id" not in second_cmd
+            assert "abc-123" in second_cmd
 
     def test_parses_result_field(self) -> None:
         cli_output = json.dumps({"result": json.dumps({"reasoning": "From result", "should_stop": False})})
@@ -182,11 +189,12 @@ class TestClaudeCLIBackend:
             result = backend.consult("Prompt")
             assert result.reasoning == "Dict result"
 
-    def test_reset_changes_session(self) -> None:
+    def test_reset_clears_session(self) -> None:
         backend = ClaudeCLIBackend()
-        old_session = backend._session_id
+        backend._session_id = "abc-123"
+        backend._consultation_count = 3
         backend.reset()
-        assert backend._session_id != old_session
+        assert backend._session_id is None
         assert backend._consultation_count == 0
 
     def test_cli_backend_handles_subprocess_error(self) -> None:
