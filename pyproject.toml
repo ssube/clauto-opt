@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "clauto-opt"
-version = "0.1.0"
+version = "0.1.1"
 description = "Claude Automatic Optimizer — wraps PyTorch optimizers and consults Claude to tune hyperparameters"
 requires-python = ">=3.12"
 license = "MIT"
