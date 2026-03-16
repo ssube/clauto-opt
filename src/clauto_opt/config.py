@@ -13,7 +13,6 @@ class ClaudeOptimizerConfig:
     # Backend settings
     model: str = "claude-sonnet-4-6"
     max_tokens: int = 1024
-    backend: str = "api"
 
     # Trigger defaults
     consult_every_n_steps: int = 100
