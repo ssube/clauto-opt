@@ -17,7 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 prodigy = [
-    "prodigy-optimizer",
+    "prodigyopt",
     "prodigy-plus-schedule-free",
 ]
 wandb = [
