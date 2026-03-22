@@ -141,7 +141,9 @@ class TestAnthropicAPIBackend:
 
 class TestClaudeCLIBackend:
     def test_first_call_has_no_session(self) -> None:
-        cli_output = json.dumps({"session_id": "abc-123", "structured_output": {"reasoning": "Test", "lr": 0.001, "should_stop": False}})
+        cli_output = json.dumps(
+            {"session_id": "abc-123", "structured_output": {"reasoning": "Test", "lr": 0.001, "should_stop": False}}
+        )
         with patch("clauto_opt.backends.cli.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(stdout=cli_output, returncode=0)
             backend = ClaudeCLIBackend(model="claude-sonnet-4-6")
@@ -155,8 +157,12 @@ class TestClaudeCLIBackend:
             assert backend._session_id == "abc-123"
 
     def test_subsequent_calls_use_resume(self) -> None:
-        first_output = json.dumps({"session_id": "abc-123", "structured_output": {"reasoning": "Test", "should_stop": False}})
-        second_output = json.dumps({"session_id": "abc-123", "structured_output": {"reasoning": "Test2", "should_stop": False}})
+        first_output = json.dumps(
+            {"session_id": "abc-123", "structured_output": {"reasoning": "Test", "should_stop": False}}
+        )
+        second_output = json.dumps(
+            {"session_id": "abc-123", "structured_output": {"reasoning": "Test2", "should_stop": False}}
+        )
         with patch("clauto_opt.backends.cli.subprocess.run") as mock_run:
             mock_run.side_effect = [
                 MagicMock(stdout=first_output, returncode=0),
